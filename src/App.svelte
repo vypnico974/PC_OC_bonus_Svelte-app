@@ -7,6 +7,9 @@
   import Nested from './lib/Nested.svelte';
   import Info from './lib/Info.svelte';
   import Thing from './lib/Thing.svelte';
+  import Inner from './lib/Inner.svelte';
+  import Outer from './lib/Outer.svelte';
+  import CustomButton from './lib/CustomButton.svelte';
  
   let name = 'world';
   let user = { loggedIn: false };
@@ -116,6 +119,14 @@
   function handleClickAlert() {
 		alert('no more alerts');
 	}
+
+  function handleMessage(event) {
+		alert(event.detail.text);
+	}
+
+  function handleClickButton() {
+		alert('Button Clicked');
+	}
 </script>
 
 <main>
@@ -217,6 +228,15 @@
 
   <h3>Events/Event modifiers</h3>
   <button on:click|once={handleClickAlert}> Cliquer moi </button>
+
+  <h3>Events/Component event</h3>
+  <Inner on:message={handleMessage} />
+
+  <h3>Events/Event forwarding</h3>
+  <Outer on:message={handleMessage} />
+
+  <h3>Events/DOM event forwarding</h3>
+  <CustomButton on:click={handleClickButton} />
 
 
   <h1>Pokédex</h1>
