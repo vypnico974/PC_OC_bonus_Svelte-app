@@ -17,5 +17,10 @@
     "tslib": "^2.5.0",
     "typescript": "^5.0.2",
     "vite": "^4.3.9"
+  },
+  "dependencies": {
+    "marked": "^5.1.0",
+    "marked-gfm-heading-id": "^3.0.4",
+    "marked-mangle": "^1.1.0"
   }
 }
