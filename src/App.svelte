@@ -11,6 +11,13 @@
   import Outer from './lib/Outer.svelte';
   import CustomButton from './lib/CustomButton.svelte';
   import {marked} from 'marked';
+  import { onMount } from 'svelte';
+  import Keypad from './lib/Keypad.svelte';
+  import InputField from './lib/inputField.svelte';
+  import Timer from './lib/Timer.svelte';
+  import Eliza from 'elizabot';
+	import { beforeUpdate, afterUpdate } from 'svelte';
+  import { tick } from 'svelte';
 
   let name = 'world';
   let user = { loggedIn: false };
@@ -32,6 +39,8 @@
   let a = 1;
 	let b = 2;
   let yes = false;
+
+  let html = '<p>Write some text!</p>';
 
   let scoops = 1;
 	let flavours = ['Mint choc chip'];
@@ -132,7 +141,21 @@
 		{ id: 2, text: `What is your mother's name?` },
 		{ id: 3, text: `What is another personal fact that an attacker could easily find with Google?` }
 	];
+  let todos = [
+		{ done: false, text: 'finish Svelte tutorial' },
+		{ done: false, text: 'build an app' },
+		{ done: false, text: 'world domination' }
+	];
 
+	function add() {
+		todos = todos.concat({ done: false, text: '' });
+	}
+
+	function clear() {
+		todos = todos.filter((t) => !t.done);
+	}
+
+	$: remaining = todos.filter((t) => !t.done).length;
 	let selected;
 
 	let answer = '';
@@ -157,6 +180,187 @@
   function handleClickButton() {
 		alert('Button Clicked');
 	}
+
+  // These values are bound to properties of the video
+	let time = 0;
+	let duration;
+	let paused = true;
+
+	let showControls = true;
+	let showControlsTimeout;
+
+	// Used to track time of last mouse down event
+	let lastMouseDown;
+
+	function handleMove(e) {
+		// Make the controls visible, but fade out after
+		// 2.5 seconds of inactivity
+		clearTimeout(showControlsTimeout);
+		showControlsTimeout = setTimeout(() => (showControls = false), 2500);
+		showControls = true;
+
+		if (!duration) return; // video not loaded yet
+		if (e.type !== 'touchmove' && !(e.buttons & 1)) return; // mouse not down
+
+		const clientX = e.type === 'touchmove' ? e.touches[0].clientX : e.clientX;
+		const { left, right } = this.getBoundingClientRect();
+		time = (duration * (clientX - left)) / (right - left);
+	}
+
+	// we can't rely on the built-in click event, because it fires
+	// after a drag — we have to listen for clicks ourselves
+	function handleMousedown(e: any) {
+		lastMouseDown = new Date();
+	}
+
+	function handleMouseup(e) {
+		if (new Date() - lastMouseDown < 300) {
+			if (paused) e.target.play();
+			else e.target.pause();
+		}
+	}
+
+	function format(seconds) {
+		if (isNaN(seconds)) return '...';
+
+		const minutes = Math.floor(seconds / 60);
+		seconds = Math.floor(seconds % 60);
+		if (seconds < 10) seconds = '0' + seconds;
+
+		return `${minutes}:${seconds}`;
+	}
+
+  let w;
+	let h;
+	let size = 42;
+	let text = 'edit me';
+
+  let canvas;
+
+	onMount(() => {
+		const ctx = canvas.getContext('2d');
+		let frame = requestAnimationFrame(loop);
+
+		function loop(t) {
+			frame = requestAnimationFrame(loop);
+
+			const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+			for (let p = 0; p < imageData.data.length; p += 4) {
+				const i = p / 4;
+				const x = i % canvas.width;
+				const y = (i / canvas.width) >>> 0;
+
+				const r = 64 + (128 * x) / canvas.width + 64 * Math.sin(t / 1000);
+				const g = 64 + (128 * y) / canvas.height + 64 * Math.cos(t / 1000);
+				const b = 128;
+
+				imageData.data[p + 0] = r;
+				imageData.data[p + 1] = g;
+				imageData.data[p + 2] = b;
+				imageData.data[p + 3] = 255;
+			}
+
+			ctx.putImageData(imageData, 0, 0);
+		}
+
+		return () => {
+			cancelAnimationFrame(frame);
+		};
+	});
+
+  let pin;
+	$: view = pin ? pin.replace(/\d(?!$)/g, '•') : 'enter your pin';
+
+	function handleSubmitPin() {
+		alert(`submitted ${pin}`);
+	}
+
+  let field;
+
+
+	let photos = [];
+
+  onMount(async () => {
+    const res = await fetch(`/tutoriel/api/album`);
+    console.log("cnx:", res)
+    photos = await res.json();
+    console.log("photos:", photos)
+  });
+
+  let open = false;
+	let seconds = 0;
+
+	const toggleTimer = () => (open = !open);
+	const handleTick = () => (seconds += 1);
+
+  let div;
+	let autoscroll;
+
+	beforeUpdate(() => {
+		autoscroll = div && div.offsetHeight + div.scrollTop > div.scrollHeight - 20;
+	});
+
+	afterUpdate(() => {
+		if (autoscroll) div.scrollTo(0, div.scrollHeight);
+	});
+
+	const eliza = new Eliza();
+
+	let comments = [{ author: 'eliza', text: eliza.getInitial() }];
+
+	function handleKeydown(event) {
+		if (event.key === 'Enter') {
+			const text = event.target.value;
+			if (!text) return;
+
+			comments = comments.concat({
+				author: 'user',
+				text
+			});
+
+			event.target.value = '';
+
+			const reply = eliza.transform(text);
+
+			setTimeout(() => {
+				comments = comments.concat({
+					author: 'eliza',
+					text: '...',
+					placeholder: true
+				});
+
+				setTimeout(() => {
+					comments = comments
+						.filter((comment) => !comment.placeholder)
+						.concat({
+							author: 'eliza',
+							text: reply
+						});
+				}, 500 + Math.random() * 500);
+			}, 200 + Math.random() * 200);
+		}
+	}
+
+  let textTick = `Select some text and hit the tab key to toggle uppercase`;
+
+  async function handleKeydownTick(event:any) {
+    if (event.key !== 'Tab') return;
+
+    event.preventDefault();
+
+    const { selectionStart, selectionEnd, value } = this;
+    const selection = value.slice(selectionStart, selectionEnd);
+
+    const replacement = /[a-z]/.test(selection) ? selection.toUpperCase() : selection.toLowerCase();
+
+    textTick = value.slice(0, selectionStart) + replacement + value.slice(selectionEnd);
+
+    await tick();
+    this.selectionStart = selectionStart;
+    this.selectionEnd = selectionEnd;
+  }
+
 </script>
 
 <main>
@@ -352,6 +556,164 @@
   </form>
   <p>selected question {selected ? selected.id : '[waiting...]'}</p>
 
+
+  <h3>Bindings/Select multiple</h3>
+  <p>Size</p>
+  <label>
+    <input type="radio" bind:group={scoops} value={1} />
+    One scoop
+  </label>
+
+  <label>
+    <input type="radio" bind:group={scoops} value={2} />
+    Two scoops
+  </label>
+
+  <label>
+    <input type="radio" bind:group={scoops} value={3} />
+    Three scoops
+  </label>
+
+  <p>Flavours</p>
+
+  <select multiple bind:value={flavours}>
+    {#each menu as flavour}
+      <option value={flavour}>
+        {flavour}
+      </option>
+    {/each}
+  </select>
+
+  {#if flavours.length === 0}
+    <p>Please select at least one flavour</p>
+  {:else if flavours.length > scoops}
+    <p>Can't order more flavours than scoops!</p>
+  {:else}
+    <p>
+      You ordered {scoops}
+      {scoops === 1 ? 'scoop' : 'scoops'}
+      of {join(flavours)}
+    </p>
+  {/if}
+
+
+  <h3>Bindings/Contenteditable</h3>
+  <div contenteditable="true" bind:innerHTML={html} />
+  <pre>{html}</pre>
+
+
+
+  <h3>Bindings/Each block bindings</h3>
+  {#each todos as todo}
+	<div class:done={todo.done}>
+		<input type="checkbox" bind:checked={todo.done} />
+		<input placeholder="What needs to be done?" bind:value={todo.text} />
+	</div>
+  {/each}
+  <p>{remaining} remaining</p>
+  <button on:click={add}> Add new </button>
+  <button on:click={clear}> Clear completed </button>
+
+
+  <h3>Bindings/Media element</h3>
+  <p>Caminandes: Llamigos</p>
+  <p>From <a href="https://studio.blender.org/films">Blender Studio</a>. CC-BY</p>
+
+  <div>
+    <video
+      poster="https://sveltejs.github.io/assets/caminandes-llamigos.jpg"
+      src="https://sveltejs.github.io/assets/caminandes-llamigos.mp4"
+      on:mousemove={handleMove}
+      on:touchmove|preventDefault={handleMove}
+      on:mousedown={handleMousedown}
+      on:mouseup={handleMouseup}
+    >
+      <track kind="captions" />
+    </video>
+
+    <div class="controls" style="opacity: {duration && showControls ? 1 : 0}">
+      <progress value={time / duration || 0} />
+
+      <div class="info">
+        <span class="time">{format(time)}</span>
+        <span>click anywhere to {paused ? 'play' : 'pause'} / drag to seek</span>
+        <span class="time">{format(duration)}</span>
+      </div>
+    </div>
+  </div>
+
+
+
+  <h3>Bindings/Dimensions</h3>
+   <input type="range" bind:value={size} />
+<input bind:value={text} />
+
+  <p>size: {w}px x {h}px</p>
+
+  <div bind:clientWidth={w} bind:clientHeight={h}>
+    <span class="dimension" style="font-size: {size}px">{text}</span>
+  </div>
+
+
+
+  <h3>Bindings/This</h3>
+  <canvas bind:this={canvas} width={32} height={32} />
+
+
+  <h3>Bindings/PIN</h3>
+  <p style="color: {pin ? '#333' : '#ccc'}">{view}</p>
+  <Keypad bind:value={pin} on:submit={handleSubmitPin} />
+
+
+  <h3>Bindings/Binding to component instances</h3>
+  <InputField bind:this={field} />
+  <button on:click={() => field.focus()}>Focus field</button>
+
+
+  <h3>Lifecycle/onMount</h3>
+  <div class="photos">
+    {#each photos as photo}
+      <figure>
+        <img src={photo.thumbnailUrl} alt={photo.title} />
+        <figcaption>{photo.title}</figcaption>
+      </figure>
+    {:else}
+      <!-- this block renders when photos.length === 0 -->
+      <p>loading...</p>
+    {/each}
+  </div>
+
+
+  <h3>Lifecycle/Timer</h3>
+  <div>
+    <button on:click={toggleTimer}>{open ? 'Close' : 'Open'} Timer</button>
+    <p>
+      The Timer component has been open for
+      {seconds}
+      {seconds === 1 ? 'second' : 'seconds'}
+    </p>
+    {#if open}
+      <Timer callback={handleTick} />
+    {/if}
+  </div>
+
+
+  <h3>Lifecycle/beforeUpdate and afterUpdate</h3>
+  <div class="scrollable" bind:this={div}>
+		{#each comments as comment}
+			<article class={comment.author}>
+				<span class="title-main">{comment.text}</span>
+			</article>
+		{/each}
+	</div>
+	<input on:keydown={handleKeydown} />
+
+
+  <h3>Lifecycle/tick</h3>
+  <textarea value={textTick} on:keydown={handleKeydownTick} />
+
+
+
   <h1>Pokédex</h1>
   <!-- {#await promise}
   Chargement du Pokédex
@@ -386,6 +748,13 @@
 </main>
 
 <style>
+  .dimension{
+    color:rgb(10, 25, 48);
+  }
+  .done {
+		opacity: 0.4;
+	}
+
   .logo {
     height: 6em;
     padding: 1.5em;
@@ -412,4 +781,84 @@
   div {
     display: flex;
   }
+
+  [contenteditable] {
+		padding: 0.5em;
+		border: 1px solid #eee;
+		border-radius: 4px;
+	}
+
+  .controls {
+		position: absolute;
+		top: 0;
+		width: 100%;
+		transition: opacity 1s;
+	}
+
+	.info {
+		display: flex;
+		width: 100%;
+		justify-content: space-between;
+	}
+
+	span {
+		padding: 0.2em 0.5em;
+		color: white;
+		text-shadow: 0 0 8px black;
+		font-size: 1.4em;
+		opacity: 0.7;
+	}
+
+	.time {
+		width: 3em;
+	}
+
+	.time:last-child {
+		text-align: right;
+	}
+
+	progress {
+		display: block;
+		width: 100%;
+		height: 10px;
+		-webkit-appearance: none;
+		appearance: none;
+	}
+
+	progress::-webkit-progress-bar {
+		background-color: rgba(0, 0, 0, 0.2);
+	}
+
+	progress::-webkit-progress-value {
+		background-color: rgba(255, 255, 255, 0.6);
+	}
+
+	video {
+		width: 100%;
+	}
+  
+  canvas {
+		/* width: 100%;
+		height: 100%; */
+		background-color: #666;
+		/* -webkit-mask: url(/svelte-logo-mask.svg) 50% 50% no-repeat;
+		mask: url(/svelte-logo-mask.svg) 50% 50% no-repeat; */
+	}
+
+  .photos {
+		width: 100%;
+		display: grid;
+		grid-template-columns: repeat(5, 1fr);
+		grid-gap: 8px;
+	}
+
+	figure,
+	img {
+		width: 100%;
+		margin: 0;
+	}
+  textarea {
+		width: 100%;
+		height: 200px;
+	}
 </style>
