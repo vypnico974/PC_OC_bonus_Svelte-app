@@ -18,6 +18,12 @@
   import Eliza from 'elizabot';
 	import { beforeUpdate, afterUpdate } from 'svelte';
   import { tick } from 'svelte';
+  import { count, timeStores, elapsed, countCustom} from './lib/stores';
+  import Incrementer from './lib/Incrementer.svelte';
+  import Decrementer from './lib/Decrementer.svelte';
+  import Resetter from './lib/Resetter.svelte';
+  import { onDestroy } from 'svelte';
+  import { readable } from 'svelte/store';
 
   let name = 'world';
   let user = { loggedIn: false };
@@ -360,6 +366,25 @@
     this.selectionStart = selectionStart;
     this.selectionEnd = selectionEnd;
   }
+
+  let countValue;
+
+	count.subscribe((value) => {
+		countValue = value;
+	});
+
+  const unsubscribe = count.subscribe((value) => {
+    countValue = value;
+  });
+
+  onDestroy(unsubscribe);
+
+  const formatter = new Intl.DateTimeFormat('en', {
+		hour12: true,
+		hour: 'numeric',
+		minute: '2-digit',
+		second: '2-digit'
+	});
 
 </script>
 
@@ -712,6 +737,31 @@
   <h3>Lifecycle/tick</h3>
   <textarea value={textTick} on:keydown={handleKeydownTick} />
 
+
+  <h3>Stores/Writable stores</h3>
+  <p>The count is {countValue}</p>
+  <Incrementer />
+  <Decrementer />
+  <Resetter />
+
+
+  <h3>Stores/Readable stores</h3>
+  <p>The time is {formatter.format($timeStores)}</p>
+
+
+  <h3>Stores/Derived stores</h3>
+  <p>
+    This page has been open for
+    {$elapsed}
+    {$elapsed === 1 ? 'second' : 'seconds'}
+  </p>
+
+  <h3>Stores/Custom stores</h3>
+  <p>The count is {$count}</p>
+  <button on:click={countCustom.increment}>+</button>
+  <button on:click={countCustom.decrement}>-</button>
+  <button on:click={countCustom.reset}>reset</button>
+  
 
 
   <h1>Pokédex</h1>
